@@ -1,2 +1,2 @@
 # Agent-Based-Dig-Recommender-Simulator
-本コードは、Infinite Scroll型サービスでのユーザーの“ディグ行動”を再現するエージェントベース・シミュレーション。G・Vベクトルで内的嗜好を表し、推薦アルゴリズム（random／popularity／trend／CBF／CF／novelty など）に基づきコンテンツを提示。エージェントは視聴・Like・Dig を確率的に判断し、状態更新をGPU（MPS/CUDA）で高速実行。ログを集計し、RecBole学習用データも生成する総合的な研究用フレームワーク。
+本コードは、Infinite Scroll型プラットフォーム上のユーザーのディグ行動を再現するエージェントベース・シミュレータです。各エージェントはG・Vベクトルで嗜好を持ち、random／popularity／trend／CBF／CF／novelty／buzzなど複数の推薦方式で提示されたコンテンツに対し視聴・Like・Digを確率的に選択。PyTorch（MPS／CUDA対応）でランキング計算を高速化し、ステップごとに統計量やログを出力してアルゴリズム間の探索分布やバイアスの違いを分析できます。
