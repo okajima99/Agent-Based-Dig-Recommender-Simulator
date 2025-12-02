@@ -17,7 +17,7 @@ random.seed(RANDOM_SEED)
 np.random.seed(RANDOM_SEED)
 
 # ============================================================================
-# パラメータ設定（整理済み・全置換用）
+# パラメータ設定
 # ============================================================================
 
 # --- 実験規模＆ランタイム ---
@@ -25,7 +25,7 @@ NUM_GENRES         = 10                      # G（ジャンル）次元
 NUM_INSTINCT_DIM   = 5                       # I（本能）次元
 NUM_AGENTS         = 1000
 NUM_CONTENTS       = 30000
-MAX_STEPS          = 200000
+MAX_STEPS          = 100000
 INITIAL_RANDOM_STEPS = 0                 # 序盤の完全ランダム表示
 # 追加のランダム挿入（探索ウィンドウ）。初期ランダム終了後に適用。
 # 例: RANDOM_RANDOM_BLOCK_LEN=300, RANDOM_NORMAL_BLOCK_LEN=1200 → 300ステップ連続ランダム → 1200ステップ通常を繰り返す
@@ -47,7 +47,7 @@ AGENT_ALPHA  = float(os.getenv("AGENT_ALPHA", "0"))  # いいね判定側のα�
 
 # --- 表示アルゴリズム（環境変数で上書き可能） ---
 #   "random" / "popularity" / "trend" / "buzz" / "cbf_item" / "cbf_user" / "cf_item" / "cf_user"
-DISPLAY_ALGORITHM = os.getenv("DISPLAY_ALGORITHM", "random")
+DISPLAY_ALGORITHM = os.getenv("DISPLAY_ALGORITHM", "cbf_item")
 # --- アルゴリズムFace（affinity / novelty） ---
 #   CBF_ITEM_FACE を正式採用（未指定時は CBF_FACE を後方互換で引き継ぎ）
 CBF_ITEM_FACE  = os.getenv("CBF_ITEM_FACE", "affinity")  # "affinity" | "novelty"
@@ -93,7 +93,7 @@ DIG_LOGIT_X0 = 0.2888
 DIG_DIVISOR  = 60
 
 # 掘りの更新量（G/V）
-DIG_G_STEP  = 0.00125       # 掘りでGを増分
+DIG_G_STEP  = 0.00115      # 掘りでGを増分
 DIG_V_RANGE = 0.10       # 掘りでVを±この範囲でランダム変動
 
 # Like の線形結合重み（CG/CV/I）
@@ -137,16 +137,17 @@ PSEUDO_DISCOUNT_GAMMA = 0.9998
 PSEUDO_HISTORY_WINDOW_STEPS = 10000
 
 # CBF-item 候補上限（0/負で無効＝全件）
-CBF_ITEM_TOP_K = 10000
+CBF_ITEM_TOP_K = 100
 
 # --- CBFユーザー向け内部パラメータ（外部設定なしで固定） ---
-CBF_USER_TOP_K_USERS           = 100
-CBF_USER_CONTENT_TOP_K         = 100
-CBF_USER_TARGET_MIN_CANDIDATES = 500
+CBF_USER_TOP_K_USERS           = 10
+CBF_USER_CONTENT_TOP_K         = 10
+CBF_USER_TARGET_MIN_CANDIDATES = 1000
 CBF_USER_BACKFILL_MAX_RETRIES  = 10
 CBF_USER_BACKFILL_GROWTH       = 2
 CBF_USER_HISTORY_WINDOW_STEPS  = 10000
 CBF_USER_DISCOUNT_GAMMA        = 0.9998
+
 # G/I 融合重み（CBF）
 CBF_W_G, CBF_W_I         = 1.0, 1.0
 CBF_USER_W_G,  CBF_USER_W_I          = 1.0, 1.0
@@ -155,8 +156,8 @@ CBF_USER_W_G,  CBF_USER_W_I          = 1.0, 1.0
 CF_CACHE_DURATION = 1000
 CF_DISCOUNT_GAMMA = 0.9998
 CF_HISTORY_WINDOW_STEPS = 10000
-CF_NEIGHBOR_TOP_K = 100    # 0/負で無効（全近傍）
-CF_CANDIDATE_TOP_K = 100  # 0/負で無効（全候補）
+CF_NEIGHBOR_TOP_K = 10   # 0/負で無効（全近傍）
+CF_CANDIDATE_TOP_K = 10   # 0/負で無効（全候補）
 
 # --- Softmax 温度（各アルゴリズムの確率化強度） ---
 LAMBDA_POPULARITY = 20
@@ -172,7 +173,7 @@ RANDOM_REPEAT_POLICY = "reset_when_exhausted"
 
 
 # --- 5,000刻みスナップショット / パネル設定 ---
-STEP_BIN = 10000
+STEP_BIN = 6000
 PANEL_N_AGENTS = 10
 PANEL_AGENT_IDS = list(range(min(PANEL_N_AGENTS, NUM_AGENTS)))
 
@@ -188,7 +189,7 @@ GV_CORR_TIMELINE = []    # list of (step, avg_pearson_gv, valid_count)
 # ログ出力（コンソールの代わりにテキストへ集約）
 # ============================================================================
 LOG_LINES: list[str] = []
-LOG_FILE_PATH: str | None = None
+# LOG_FILE_PATH はパラメータ設定ブロックで定義済み
 
 def log_line(msg: str):
     LOG_LINES.append(str(msg))
@@ -2625,7 +2626,7 @@ for step in range(MAX_STEPS):
             (int(step), int(content.id), float(s_cg), float(s_cv), float(s_ci), liked_flag_int)
         )
 
-        # --- impression_log: (step, cid, like_flag, cos, pearson_r_g_content) ---
+        # --- impression_log: (step, cid, like_flag, cos, pearson_r_g_content, pearson_r_v_content) ---
         # cos は user G と content G のコサイン類似度
         cos_g = _safe_sim_alpha(agent.interests, content.vector, 1.0)
 
@@ -2635,11 +2636,15 @@ for step in range(MAX_STEPS):
             g_user_act = np.asarray(agent.interests, dtype=np.float64)[idx_act]
             g_cont_act = np.asarray(content.vector,   dtype=np.float64)[idx_act]
             pearson_g = _pearson_r(g_user_act, g_cont_act)
+
+            v_user_act = np.asarray(agent.V, dtype=np.float64)[idx_act]
+            pearson_v = _pearson_r(v_user_act, g_cont_act)
         else:
             pearson_g = float("nan")
+            pearson_v = float("nan")
 
         agent.impression_log.append(
-            (int(step), int(content.id), liked_flag_int, float(cos_g), float(pearson_g))
+            (int(step), int(content.id), liked_flag_int, float(cos_g), float(pearson_g), float(pearson_v))
         )
 
         if bool(dig_flags[a_id]):
@@ -2649,6 +2654,21 @@ for step in range(MAX_STEPS):
                 g_on_j = float(content.vector[j_dim])
             else:
                 g_on_j = 0.0
+
+            # rank_g: コンテンツGの次元順位（大きいほど順位下がる）
+            # rank_v: エージェントVの次元順位
+            rank_g = None
+            rank_v = None
+            try:
+                order_g = np.argsort(-np.asarray(content.vector, dtype=np.float64))
+                rank_g = int(np.where(order_g == j_dim)[0][0]) + 1
+            except Exception:
+                rank_g = None
+            try:
+                order_v = np.argsort(-np.asarray(agent.V, dtype=np.float64))
+                rank_v = int(np.where(order_v == j_dim)[0][0]) + 1
+            except Exception:
+                rank_v = None
 
             # 掘りに応じて G/V を微調整し、GPU 行列も即座に同期する
             if 0 <= j_dim < len(agent.interests):
@@ -2667,9 +2687,9 @@ for step in range(MAX_STEPS):
                 if delta_v != 0.0:
                     v_updates.append((a_id, j_dim, delta_v))
 
-            # 形式: (step, j_dim, dV, content_g_on_j)
+            # 形式: (step, j_dim, dV, content_g_on_j, rank_g, rank_v)
             agent.dig_log.append(
-                (int(step), j_dim, float(dV), g_on_j)
+                (int(step), j_dim, float(dV), g_on_j, rank_g, rank_v)
             )
 
         # like 反映
@@ -2878,12 +2898,34 @@ def build_user_content_corr_trend(agents):
         for rec in getattr(a, "impression_log", []):
             if len(rec) < 5:
                 continue
-            s, _cid, _liked, _cos, r = rec
+            s, _cid, _liked, _cos, r = rec[:5]
             if r != r:  # NaNチェック
                 continue
             bi = _bin_index(s)
             if 0 <= bi < len(bins):
                 sums[bi] += float(r)
+                cnts[bi] += 1
+    avg_r = [(s/c if c > 0 else "") for s, c in zip(sums, cnts)]
+    return bins, avg_r, cnts
+
+def build_user_v_content_corr_trend(agents):
+    """
+    impression_log: (step, cid, like_flag, cos, pearson_r_g_content, pearson_v_content)
+    を用いて、STEP_BIN刻みで Pearson(user V, content G_active) の平均を返す。
+    """
+    bins = _collect_bins_range()
+    sums = [0.0 for _ in bins]
+    cnts = [0   for _ in bins]
+    for a in agents:
+        for rec in getattr(a, "impression_log", []):
+            if len(rec) < 6:
+                continue
+            s, _cid, _liked, _cos, _r_g, r_v = rec
+            if r_v != r_v:  # NaN
+                continue
+            bi = _bin_index(s)
+            if 0 <= bi < len(bins):
+                sums[bi] += float(r_v)
                 cnts[bi] += 1
     avg_r = [(s/c if c > 0 else "") for s, c in zip(sums, cnts)]
     return bins, avg_r, cnts
@@ -2972,6 +3014,36 @@ def _dig_counts_per_dim(agent, num_genres=NUM_GENRES):
             cnt[j] += 1
     return cnt
 
+def build_dig_strength_histograms(agents, *, num_bins: int = 10):
+    """
+    掘りが起きたときの G 次元の値（g_on_j）を 0..1 を num_bins 等分した帯域に集計。
+    戻り値: bins(list), edges(np.ndarray[num_bins+1]), counts(list[list[int]])
+    """
+    bins = _collect_bins_range()
+    edges = np.linspace(0.0, 1.0, num_bins + 1)
+    counts = [[0 for _ in range(num_bins)] for _ in bins]
+
+    for a in agents:
+        for rec in getattr(a, "dig_log", []):
+            if not rec or len(rec) < 4:
+                continue
+            try:
+                s = int(rec[0])
+                g_val = float(rec[3])
+            except (TypeError, ValueError):
+                continue
+            bi = _bin_index(s)
+            if bi < 0 or bi >= len(bins):
+                continue
+            if not np.isfinite(g_val):
+                continue
+            g_clip = min(max(g_val, 0.0), 1.0)
+            idx = int(np.searchsorted(edges, g_clip, side="right") - 1)
+            idx = max(0, min(idx, num_bins - 1))
+            counts[bi][idx] += 1
+
+    return bins, edges, counts
+
 # ----[ プリント（レポート）関数群 ]---------
 # --- レポート出力 ---
 def print_agent_summary(agents):
@@ -3038,6 +3110,14 @@ def print_user_content_corr_5k(agents):
         r_out = ("" if r == "" else f"{float(r):.6f}")
         log_line(f"{start}, {r_out}")
 
+def print_user_v_content_corr_5k(agents):
+    bins, avg_r, cnts = build_user_v_content_corr_trend(agents)
+    _print_header(f"ユーザーV–コンテンツG（active）Pearson相関の推移（{BIN_STR}刻み）")
+    log_line("bin_start, avg_pearson_r_v")
+    for (start, _end), r, n in zip(bins, avg_r, cnts):
+        r_out = ("" if r == "" else f"{float(r):.6f}")
+        log_line(f"{start}, {r_out}")
+
 def print_gv_corr_timeline_summary():
     snap = build_gv_corr_timeline_snapshot()
     _print_header(f"G–V 相関タイムライン（{BIN_STR}刻みスナップショット）")
@@ -3045,6 +3125,14 @@ def print_gv_corr_timeline_summary():
     for step, avg_r, _n_ignored in snap:
         r_out = "" if (avg_r != avg_r) else f"{avg_r:.6f}"
         log_line(f"{step}, {r_out}")
+
+def print_dig_strength_hist(agents, *, num_bins: int = 10):
+    bins, edges, counts = build_dig_strength_histograms(agents, num_bins=num_bins)
+    _print_header(f"Dig回数（G強度帯域別, {BIN_STR}刻み）")
+    band_labels = [f"{edges[i]:.1f}-{edges[i+1]:.1f}" for i in range(num_bins)]
+    log_line("bin_start, " + ", ".join(band_labels))
+    for (start, _end), row in zip(bins, counts):
+        log_line(f"{start}, " + ", ".join(str(int(x)) for x in row))
 
 # ----[ エクスポート関数群 ]-----------------
 def build_panel_10x20(agents):
@@ -3216,7 +3304,7 @@ def export_readable_csv(agents, contents, prefix=None):
     log_and_print(f"✅ CSVを書き出しました -> {prefix}_agents.csv, {prefix}_contents.csv")
 
 # ============================================================================
-# 図出力：各タイムライン（STEP_BIN刻み）※全置換
+# 図出力：各タイムライン（STEP_BIN刻み）
 # ============================================================================
 
 # --- プロット ---
@@ -3340,6 +3428,29 @@ def plot_avg_user_content_corr_by_time(agents, *, out_path=None):
     log_and_print(f"✅ 図を書き出しました -> {out_path}")
     return out_path
 
+def plot_avg_user_v_content_corr_by_time(agents, *, out_path=None):
+    """
+    ユーザーV–コンテンツG（active）Pearson相関の平均を1本線で描画。
+    """
+    bins, avg_r, cnts = build_user_v_content_corr_trend(agents)
+    x = np.array([start for (start, _end) in bins], dtype=float)
+    y = _to_nan_array(avg_r)
+
+    plt.figure(figsize=(9, 6))
+    plt.grid(True, linestyle="--", linewidth=0.7, alpha=0.4)
+    plt.plot(x, y, marker="o", label="avg Pearson r (user V vs content G_active)")
+    plt.xlabel(f"time (bin={BIN_STR} steps)")
+    plt.ylabel("average Pearson r")
+    plt.title("User V – Content G Pearson correlation over time")
+    plt.legend(frameon=True)
+    plt.tight_layout()
+    if out_path is None:
+        out_path = f"{OUT_PREFIX}_avg_user_v_content_pearson_by_time.png"
+    plt.savefig(out_path, dpi=160)
+    plt.close()
+    log_and_print(f"✅ 図を書き出しました -> {out_path}")
+    return out_path
+
 def plot_g_diversity_timelines(*, out_entropy=None, out_variance=None):
     """
     G多様性タイムライン：
@@ -3451,12 +3562,50 @@ def plot_avg_dig_rank_trend(agents, *, out_path=None):
     log_and_print(f"✅ 図を書き出しました -> {out_path}")
     return out_path
 
+def plot_dig_strength_hist_by_time(agents, *, num_bins: int = 10, out_path=None):
+    """
+    STEP_BIN ごとに、G強度帯域（0..1を等分）の掘り回数を折れ線で重ねて描画。
+    色は古い順→新しい順にグラデーション。
+    """
+    bins, edges, counts = build_dig_strength_histograms(agents, num_bins=num_bins)
+    if not bins:
+        log_and_print("⚠️ digデータがありません。")
+        return None
+
+    x = (edges[:-1] + edges[1:]) / 2.0  # 帯域中心（点の数 = num_bins）
+    colors = plt.cm.plasma(np.linspace(0, 1, len(bins)))
+
+    plt.figure(figsize=(10, 6))
+    for idx, ((start, _end), row) in enumerate(zip(bins, counts)):
+        y = np.asarray(row, dtype=float)
+        plt.plot(x, y, marker="o", linestyle="-", color=colors[idx], label=f"{start}-{_end-1}")
+
+    plt.grid(True, linestyle="--", alpha=0.4)
+    plt.xticks(edges, [f"{e:.1f}" for e in edges])
+    plt.xlabel("G strength band (0-1)")
+    plt.ylabel("dig count")
+    plt.title("Dig count per G strength band (per time bin)")
+
+    # カラーバーで時間のグラデーションを示す
+    sm = plt.cm.ScalarMappable(cmap=plt.cm.plasma, norm=plt.Normalize(vmin=bins[0][0], vmax=bins[-1][0]))
+    sm.set_array([])
+    cbar = plt.colorbar(sm, ax=plt.gca(), pad=0.02)
+    cbar.set_label("bin start step")
+
+    # legend は多くなるので省略（カラーバーで代替）
+    plt.tight_layout()
+    if out_path is None:
+        out_path = f"{OUT_PREFIX}_dig_strength_hist_by_time.png"
+    plt.savefig(out_path, dpi=160)
+    plt.close()
+    log_and_print(f"✅ 図を書き出しました -> {out_path}")
+    return out_path
+
 def plot_avg_dig_rank(agents, *, out_path=None):
     """
     STEP_BIN ごとに集計された平均順位（GとV）を同じグラフに描画する。
     y軸は「平均順位（1 = 最も強い次元）」。
     """
-    # STEP_BIN ごとの平均順位（既存の関数を利用）
     bins, avg_g, avg_v, totals = build_avg_dig_rank(agents)
     if not bins:
         log_and_print("⚠️ digデータがありません。")
@@ -3467,8 +3616,8 @@ def plot_avg_dig_rank(agents, *, out_path=None):
 
     # y軸（平均順位）— 値が '' のところは NaN にする
     import numpy as np
-    y_g = np.array([np.nan if g=="" else float(g) for g in avg_g], dtype=float)
-    y_v = np.array([np.nan if v=="" else float(v) for v in avg_v], dtype=float)
+    y_g = np.array([np.nan if g == "" else float(g) for g in avg_g], dtype=float)
+    y_v = np.array([np.nan if v == "" else float(v) for v in avg_v], dtype=float)
 
     # プロット
     plt.figure(figsize=(9, 5))
@@ -3488,6 +3637,8 @@ def plot_avg_dig_rank(agents, *, out_path=None):
     plt.savefig(out_path, dpi=160)
     plt.close()
     log_and_print(f"✅ 平均順位グラフを書き出しました -> {out_path}")
+    return out_path
+
 
 def emit_all_outputs(agents, contents, *, out_prefix=OUT_PREFIX):
     """
@@ -3505,8 +3656,10 @@ def emit_all_outputs(agents, contents, *, out_prefix=OUT_PREFIX):
     print_score_averages_5k(agents, likes_only=True)
     print_score_averages_5k(agents, likes_only=False)
     print_user_content_corr_5k(agents)          # ユーザーG–コンテンツG(active)の相関タイムライン
+    print_user_v_content_corr_5k(agents)        # ユーザーV–コンテンツG(active)の相関タイムライン
     print_gv_corr_timeline_summary()            # G–V 相関タイムライン（avg Pearson r、n_agents）
     print_avg_dig_rank_5k(agents, round_to_int=True)
+    print_dig_strength_hist(agents, num_bins=10)
 
     # 2) CSVエクスポート
     export_panel_csv(agents, contents=contents, prefix=out_prefix)
@@ -3519,13 +3672,14 @@ def emit_all_outputs(agents, contents, *, out_prefix=OUT_PREFIX):
         plot_delta_dig_by_time(agents, out_path=f"{out_prefix}_delta_dig_by_time.png")
         plot_avg_user_content_cos_by_time(agents, out_path=f"{out_prefix}_avg_user_content_cos_by_time.png")
         plot_avg_user_content_corr_by_time(agents, out_path=f"{out_prefix}_avg_user_content_pearson_by_time.png")
+        plot_avg_user_v_content_corr_by_time(agents, out_path=f"{out_prefix}_avg_user_v_content_pearson_by_time.png")
         plot_gv_corr_timeline(out_path=f"{out_prefix}_avg_gv_corr_timeline.png")
         plot_g_diversity_timelines(
             out_entropy=f"{out_prefix}_G_entropy_timeline.png",
             out_variance=f"{out_prefix}_G_variance_timeline.png"
         )
         plot_avg_dig_rank_trend(agents, out_path=f"{out_prefix}_avg_dig_rank_trend.png")
-        plot_avg_dig_rank(agents, out_path=f"{out_prefix}_avg_dig_rank.png")
+        plot_dig_strength_hist_by_time(agents, num_bins=10, out_path=f"{out_prefix}_dig_strength_hist_by_time.png")
     except Exception as e:
         log_and_print(f"⚠️ 図の書き出しに失敗しました: {e}")
 
