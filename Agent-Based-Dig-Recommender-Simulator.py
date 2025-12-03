@@ -29,20 +29,20 @@ MAX_STEPS          = 100000
 INITIAL_RANDOM_STEPS = 0                 # 序盤の完全ランダム表示
 # 追加のランダム挿入（探索ウィンドウ）。初期ランダム終了後に適用。
 # 例: RANDOM_RANDOM_BLOCK_LEN=300, RANDOM_NORMAL_BLOCK_LEN=1200 → 300ステップ連続ランダム → 1200ステップ通常を繰り返す
-RANDOM_INTERVAL_ON       = bool(int(os.getenv("RANDOM_INTERVAL_ON", "1")))
-RANDOM_RANDOM_BLOCK_LEN  = int(os.getenv("RANDOM_RANDOM_BLOCK_LEN", "3000"))   # ランダム表示の連続ステップ数
-RANDOM_NORMAL_BLOCK_LEN  = int(os.getenv("RANDOM_NORMAL_BLOCK_LEN", "3000"))   # 通常アルゴリズムの連続ステップ数
+RANDOM_INTERVAL_ON       = True
+RANDOM_RANDOM_BLOCK_LEN  = 3000   # ランダム表示の連続ステップ数
+RANDOM_NORMAL_BLOCK_LEN  = 3000   # 通常アルゴリズムの連続ステップ数
 
 # --- コンテンツ補充（周期のみ、0指定で無効） ---
 # 例: REPLENISH_EVERY=500, REPLENISH_COUNT=10000, START=3000, END=8000
-REPLENISH_EVERY        = int(os.getenv("REPLENISH_EVERY", "6000"))  # 0=無効
-REPLENISH_COUNT        = int(os.getenv("REPLENISH_COUNT", "60000"))
-REPLENISH_START_STEP   = int(os.getenv("REPLENISH_START_STEP", "0"))
-REPLENISH_END_STEP     = int(os.getenv("REPLENISH_END_STEP", str(MAX_STEPS)))
+REPLENISH_EVERY        = 6000  # 0=無効
+REPLENISH_COUNT        = 60000
+REPLENISH_START_STEP   = 0
+REPLENISH_END_STEP     = MAX_STEPS
 
 # --- 類似度モード ---
 #   いいね判定（ユーザー側）は従来通り AGENT_ALPHA を使用可
-AGENT_ALPHA  = float(os.getenv("AGENT_ALPHA", "0"))  # いいね判定側のα（維持）
+AGENT_ALPHA  = 0.0  # いいね判定側のα（維持）
 ## アルゴリズム側の α は廃止（常にコサイン類似度）
 
 # --- 表示アルゴリズム（環境変数で上書き可能） ---
@@ -55,8 +55,7 @@ CBF_USER_FACE  = os.getenv("CBF_USER_FACE", "affinity")
 CF_ITEM_FACE   = os.getenv("CF_ITEM_FACE", "affinity")
 CF_USER_FACE   = os.getenv("CF_USER_FACE", "affinity")
 # --- 出力ファイルの接頭辞 ---
-OUT_PREFIX = os.getenv("OUT_PREFIX", f"simulation_{DISPLAY_ALGORITHM}_noDSSM")
-LOG_FILE_PATH = f"{OUT_PREFIX}_analysis.txt"
+OUT_PREFIX = f"simulation_{DISPLAY_ALGORITHM}_noDSSM"
 
 # --- コンテンツのactive数（G/I） ---
 content_max_active   = 3   # G 用
@@ -64,15 +63,15 @@ content_i_max_active = 3   # I 用
 
 # --- 生成ポリシー（4値に統一） ---
 # 全て: "element" | "norm" | "legacy" | "random"
-CONTENT_G_MODE = os.getenv("CONTENT_G_MODE", "random")
-CONTENT_I_MODE = os.getenv("CONTENT_I_MODE", "random")
+CONTENT_G_MODE = "random"
+CONTENT_I_MODE = "random"
 # コンテンツ行列の常駐dtype（cuda時のみ有効）: "fp16" | "bf16"
-CONTENT_MAT_DTYPE = os.getenv("CONTENT_MAT_DTYPE", "fp16").lower()
+CONTENT_MAT_DTYPE = "fp16"
 
 # 既存のエージェント側にも random を追加（既存の3値に+1）
-AGENT_G_MODE = os.getenv("AGENT_G_MODE", "element")  # "legacy" | "element" | "norm" | "random"
-AGENT_I_MODE = os.getenv("AGENT_I_MODE", "random")  # "legacy" | "element" | "norm" | "random"
-AGENT_V_MODE = os.getenv("AGENT_V_MODE", "random")  # "legacy" | "element" | "norm" | "random"
+AGENT_G_MODE = "element"  # "legacy" | "element" | "norm" | "random"
+AGENT_I_MODE = "random"  # "legacy" | "element" | "norm" | "random"
+AGENT_V_MODE = "random"  # "legacy" | "element" | "norm" | "random"
 
 # --- ベクトル生成の分布パラメータ ---
 content_G_PARAMS = dict(mu=0.35, sigma=0.30, norm_mu=0.70, norm_sigma=0.27)
@@ -137,7 +136,7 @@ PSEUDO_DISCOUNT_GAMMA = 0.9998
 PSEUDO_HISTORY_WINDOW_STEPS = 10000
 
 # CBF-item 候補上限（0/負で無効＝全件）
-CBF_ITEM_TOP_K = 100
+CBF_ITEM_TOP_K = 1000
 
 # --- CBFユーザー向け内部パラメータ（外部設定なしで固定） ---
 CBF_USER_TOP_K_USERS           = 10
@@ -153,11 +152,13 @@ CBF_W_G, CBF_W_I         = 1.0, 1.0
 CBF_USER_W_G,  CBF_USER_W_I          = 1.0, 1.0
 
 # CFキャッシュTTL（cf_user / cf_item 兼用）
-CF_CACHE_DURATION = 1000
+CF_CACHE_DURATION = 720
 CF_DISCOUNT_GAMMA = 0.9998
 CF_HISTORY_WINDOW_STEPS = 10000
-CF_NEIGHBOR_TOP_K = 10   # 0/負で無効（全近傍）
-CF_CANDIDATE_TOP_K = 10   # 0/負で無効（全候補）
+CF_USER_NEIGHBOR_TOP_K    = 10   # 0/負で無効（全近傍）
+CF_USER_CANDIDATE_TOP_K   = 1000  # 0/負で無効（全候補）
+CF_ITEM_NEIGHBOR_TOP_K    = int(os.getenv("CF_ITEM_NEIGHBOR_TOP_K", str(CF_USER_NEIGHBOR_TOP_K)))
+CF_ITEM_CANDIDATE_TOP_K   = int(os.getenv("CF_ITEM_CANDIDATE_TOP_K", str(CF_USER_CANDIDATE_TOP_K)))
 
 # --- Softmax 温度（各アルゴリズムの確率化強度） ---
 LAMBDA_POPULARITY = 20
@@ -189,7 +190,22 @@ GV_CORR_TIMELINE = []    # list of (step, avg_pearson_gv, valid_count)
 # ログ出力（コンソールの代わりにテキストへ集約）
 # ============================================================================
 LOG_LINES: list[str] = []
-# LOG_FILE_PATH はパラメータ設定ブロックで定義済み
+
+def _face_suffix(algo: str) -> str:
+    algo = str(algo).lower()
+    if algo == "cbf_item":
+        return CBF_ITEM_FACE.lower()
+    if algo == "cbf_user":
+        return CBF_USER_FACE.lower()
+    if algo == "cf_item":
+        return CF_ITEM_FACE.lower()
+    if algo == "cf_user":
+        return CF_USER_FACE.lower()
+    return ""
+
+_FACE_SUFFIX = _face_suffix(DISPLAY_ALGORITHM)
+OUT_PREFIX_FACE = f"{OUT_PREFIX}_{_FACE_SUFFIX}" if _FACE_SUFFIX else OUT_PREFIX
+LOG_FILE_PATH = f"{OUT_PREFIX_FACE}_analysis.txt"
 
 def log_line(msg: str):
     LOG_LINES.append(str(msg))
@@ -831,11 +847,7 @@ class GPUDisplayEngine:
 
     def pick_contents(self, display_algorithm, step, isc, agents):
         """
-        DISPLAY_ALGORITHM ごとの「全エージェントの表示コンテンツID」を返す共通入口。
-
-        戻り値:
-            - torch.LongTensor (shape: [num_agents])  … GPUで計算したインデックス
-            - または None                           … まだGPU未対応 → 旧CPU実装にフォールバック
+        DISPLAY_ALGORITHM ごとの「全エージェントの表示コンテンツID」を返す共通入口（GPU前提）。
         """
         # --- CBF: item-based（GPUバッチ版・擬似＋face対応）---
         if display_algorithm == "cbf_item":
@@ -1419,7 +1431,6 @@ class ISC:
         self.pop_cache_timer = 0
         self.trend_cache_timer = 0
         self.buzz_cache_timer = 0
-        self.cbf_user_sim_matrix = None
         self.pseudo_cache_timer = 0
         self.cf_matrix_cache_timer = 0
         # CFのlike行列用: キャッシュ更新時にまとめて反映するためのステージング
@@ -1503,8 +1514,6 @@ class ISC:
                     a.cbf_user_score_cache = []
                 if DISPLAY_ALGORITHM == "cbf_user":
                     self.update_global_cbf_user_user_sims(step, agents)
-                else:
-                    self.cbf_user_sim_matrix = None
                 self.pseudo_cache_timer = PSEUDO_CACHE_DURATION
 
         if not need_cf:
@@ -1559,9 +1568,16 @@ class ISC:
             UV = torch.sparse_coo_tensor(indices, values, size=(U, I), device=DEVICE)
             self.UV_matrix = UV.coalesce()
             self.VU_matrix = UV.transpose(0, 1).coalesce()
+            # user-user 類似度をキャッシュ（後段で再利用して mm を避ける）
+            try:
+                sim_mat = torch.sparse.mm(self.UV_matrix, self.VU_matrix).to(torch.float32)
+                self.cf_user_sim_matrix_t = sim_mat
+            except Exception:
+                self.cf_user_sim_matrix_t = None
         else:
             self.UV_matrix = None
             self.VU_matrix = None
+            self.cf_user_sim_matrix_t = None
         self.cf_last_built_step = step
 
         if step > self.last_decay_step:
@@ -1574,7 +1590,6 @@ class ISC:
     def update_global_cbf_user_user_sims(self, step, agents):
         n = len(agents)
         if n == 0:
-            self.cbf_user_sim_matrix = None
             self.cbf_user_sim_matrix_t = None
             return
 
@@ -1608,8 +1623,6 @@ class ISC:
 
         # GPU常駐を保持（fp32）
         self.cbf_user_sim_matrix_t = S
-        # 後方互換のためにCPU版も残す（必要最小限の場面でのみ使用）
-        self.cbf_user_sim_matrix = _to_np(S).astype(np.float64)
 
     def get_content_for(self, step, agent=None, agents=None):
         if (step < INITIAL_RANDOM_STEPS) or (DISPLAY_ALGORITHM == "random") or (agent is None):
@@ -2028,19 +2041,12 @@ class UserAgent:
         return (pG if has_g else None, pI if has_i else None)
 
     def _cbf_user_prepare_neighbors(self, step, agents, isc_obj):
-        if isc_obj.cbf_user_sim_matrix is None:
+        if getattr(isc_obj, "cbf_user_sim_matrix_t", None) is None:
             isc_obj.update_global_cbf_user_user_sims(step, agents)
-        if getattr(isc_obj, "cbf_user_sim_matrix_t", None) is not None:
-            sims_row_t = isc_obj.cbf_user_sim_matrix_t[self.id, :]
-            K = min(CBF_USER_TOP_K_USERS, len(agents) - 1)
-            vals_t, idx_t = torch.topk(sims_row_t, K, largest=True, sorted=True)
-            return idx_t.to("cpu").numpy(), vals_t.to("cpu").numpy()
-        sims_row = isc_obj.cbf_user_sim_matrix[self.id]
+        sims_row_t = isc_obj.cbf_user_sim_matrix_t[self.id, :]
         K = min(CBF_USER_TOP_K_USERS, len(agents) - 1)
-        neigh_idx = np.argpartition(-sims_row, K - 1)[:K]
-        neigh_idx = neigh_idx[np.argsort(-sims_row[neigh_idx])]
-        neigh_sims = sims_row[neigh_idx]
-        return neigh_idx, neigh_sims
+        vals_t, idx_t = torch.topk(sims_row_t, K, largest=True, sorted=True)
+        return idx_t.to("cpu").numpy(), vals_t.to("cpu").numpy()
 
     def _cbf_user_collect_scores(self, step, agents, content_pool, neigh_idx, neigh_sims):
         ids_arr = np.asarray([c.id for c in content_pool], dtype=np.int64)
@@ -2189,29 +2195,34 @@ class UserAgent:
 # CF（user/item）候補生成ヘルパ
 # ============================================================================
 
-def _cf_candidates_core(isc_obj, target_agent, step: int, *, lam: float, face: str):
+def _cf_candidates_core(isc_obj, target_agent, step: int, *, lam: float, face: str, neigh_k: int, cand_k: int):
     """
-    GPU 行列が利用できれば高速パス、それ以外は CPU 実装。
+    GPU 行列を前提にした CF 候補計算。
     """
-    if DEVICE.type != "cpu":
-        gpu_res = _cf_candidates_core_gpu(isc_obj, target_agent, step=step, lam=lam, face=face)
-        if gpu_res is not None:
-            return gpu_res
-    res = _cf_candidates_core_cpu(isc_obj, target_agent, step=step, lam=lam, face=face)
-    # 空ならランダムフォールバック
-    if res[0].size == 0:
-        cid = target_agent.next_unseen_random_cid(len(isc_obj.pool))
-        return (np.asarray([cid], dtype=np.int64), np.asarray([1.0], dtype=np.float64))
-    return res
+    gpu_res = _cf_candidates_core_gpu(
+        isc_obj,
+        target_agent,
+        step=step,
+        lam=lam,
+        face=face,
+        neigh_k=neigh_k,
+        cand_k=cand_k,
+    )
+    if gpu_res is not None:
+        return gpu_res
+    # GPU計算に失敗した場合のフォールバック（未視聴ランダム）
+    cid = target_agent.next_unseen_random_cid(len(isc_obj.pool))
+    return (np.asarray([cid], dtype=np.int64), np.asarray([1.0], dtype=np.float64))
 
 
-def _cf_candidates_core_cpu(isc_obj, target_agent, step: int, *, lam: float, face: str):
+def _cf_candidates_core_cpu(isc_obj, target_agent, step: int, *, lam: float, face: str, neigh_k: int, cand_k: int):
     """
     1ユーザー分の CF 候補を計算して、(content_ids, probs) を返す共通コア。
     - isc_obj.user_like_w / item_liked_by_w を使った user-based CF
     - 既視聴 / 既Likeは除外
     - face == "novelty" のときは「1 - cos(G_user, G_content)」でスコア上書き
     """
+    raise RuntimeError("CPU CF candidates path is disabled (GPU only).")
     ensure_content_index(isc_obj.pool)
     global _CONTENT_IDS, _ID2ROW
 
@@ -2233,6 +2244,8 @@ def _cf_candidates_core_cpu(isc_obj, target_agent, step: int, *, lam: float, fac
     item_scores: dict[int, float] = {}
 
     # --- 近傍ユーザー経由で item スコアを集計 ---
+    K_neigh = int(neigh_k)
+
     for ridx_i, dq_ui in list(row_self.items()):
         while dq_ui and (step - dq_ui[0] > CF_HISTORY_WINDOW_STEPS):
             dq_ui.popleft()
@@ -2245,8 +2258,8 @@ def _cf_candidates_core_cpu(isc_obj, target_agent, step: int, *, lam: float, fac
         if not neigh_users:
             continue
         neigh_items = list(neigh_users.items())
-        if CF_NEIGHBOR_TOP_K > 0 and len(neigh_items) > CF_NEIGHBOR_TOP_K:
-            neigh_items = sorted(neigh_items, key=lambda kv: len(kv[1]), reverse=True)[:CF_NEIGHBOR_TOP_K]
+        if K_neigh > 0 and len(neigh_items) > K_neigh:
+            neigh_items = sorted(neigh_items, key=lambda kv: len(kv[1]), reverse=True)[:K_neigh]
 
         for v_uid, dq_vi in neigh_items:
             v_uid = int(v_uid)
@@ -2316,8 +2329,9 @@ def _cf_candidates_core_cpu(isc_obj, target_agent, step: int, *, lam: float, fac
     ids_np = np.asarray(ids, dtype=np.int64)
     vals_np = np.asarray(vals, dtype=np.float64)
 
-    if CF_CANDIDATE_TOP_K > 0 and vals_np.size > CF_CANDIDATE_TOP_K:
-        part = np.argpartition(-vals_np, CF_CANDIDATE_TOP_K - 1)[:CF_CANDIDATE_TOP_K]
+    K_cand = int(cand_k)
+    if K_cand > 0 and vals_np.size > K_cand:
+        part = np.argpartition(-vals_np, K_cand - 1)[:K_cand]
         order = part[np.argsort(-vals_np[part])]
         vals_np = vals_np[order]
         ids_np = ids_np[order]
@@ -2342,6 +2356,8 @@ def cf_user_candidates(isc_obj, uid: int, step: int, agents, *, face: str = "aff
         step,
         lam=LAMBDA_CF_USER,
         face=face,
+        neigh_k=CF_USER_NEIGHBOR_TOP_K,
+        cand_k=CF_USER_CANDIDATE_TOP_K,
     )
 
 
@@ -2361,13 +2377,21 @@ def cf_item_candidates(isc_obj, uid: int, step: int, agents, *, face: str = "aff
         step,
         lam=LAMBDA_CF_ITEM,
         face=face,
+        neigh_k=CF_ITEM_NEIGHBOR_TOP_K,
+        cand_k=CF_ITEM_CANDIDATE_TOP_K,
     )
 
 
-def _cf_candidates_core_gpu(isc_obj, target_agent, step: int, *, lam: float, face: str):
+def _cf_candidates_core_gpu(isc_obj, target_agent, step: int, *, lam: float, face: str, neigh_k: int, cand_k: int):
     global _CONTENT_IDS, _ID2ROW
     ensure_content_index(isc_obj.pool)
     if (_CONTENT_IDS is None) or (len(_CONTENT_IDS) == 0):
+        return None
+
+    # 疎行列（GPU）経由で類似度と候補を集計
+    UV = getattr(isc_obj, "UV_matrix", None)
+    VU = getattr(isc_obj, "VU_matrix", None)
+    if UV is None or VU is None:
         return None
 
     uid = int(target_agent.id)
@@ -2377,99 +2401,80 @@ def _cf_candidates_core_gpu(isc_obj, target_agent, step: int, *, lam: float, fac
         ridx_seen = [_ID2ROW.get(int(cid)) for cid in seen_ids if _ID2ROW.get(int(cid)) is not None]
         if ridx_seen:
             seen_ridx_arr = np.asarray(ridx_seen, dtype=np.int64)
-    user_like_w = isc_obj.user_like_w
-    item_liked_by_w = isc_obj.item_liked_by_w
-    row_self = user_like_w.get(uid, {})
-    if not row_self:
+
+    K_neigh = int(neigh_k)
+    K_cand = int(cand_k)
+
+    # user-user 類似度ベクトル（キャッシュがあれば使う）
+    if getattr(isc_obj, "cf_user_sim_matrix_t", None) is not None:
+        sim_users = isc_obj.cf_user_sim_matrix_t[:, uid]
+    else:
+        try:
+            sim_users = torch.sparse.mm(UV, VU[:, [uid]]).squeeze(1)  # (U,)
+        except Exception:
+            return None
+
+    sim_users = sim_users.to(torch.float32)
+    if sim_users.numel() == 0:
         return None
+    # 自分は除外
+    if uid < sim_users.numel():
+        sim_users[uid] = 0.0
 
-    neighbor_sim = {}
-    K_neigh = int(CF_NEIGHBOR_TOP_K)
-    liked_ridx_self = set(row_self.keys())
-    for ridx_i, dq_ui in list(row_self.items()):
-        while dq_ui and (step - dq_ui[0] > CF_HISTORY_WINDOW_STEPS):
-            dq_ui.popleft()
-        if not dq_ui:
-            row_self.pop(ridx_i, None)
-            continue
-        w_ui = len(dq_ui)
-        cid_i = int(_CONTENT_IDS[ridx_i])
-        neigh_users = item_liked_by_w.get(cid_i, {})
-        if not neigh_users:
-            continue
-        for v_uid, dq_vi in list(neigh_users.items()):
-            v_uid = int(v_uid)
-            if v_uid == uid:
-                continue
-            while dq_vi and (step - dq_vi[0] > CF_HISTORY_WINDOW_STEPS):
-                dq_vi.popleft()
-            if not dq_vi:
-                neigh_users.pop(v_uid, None)
-                continue
-            sim_uv = float(w_ui) * float(len(dq_vi))
-            if sim_uv <= 0.0:
-                continue
-            neighbor_sim[v_uid] = neighbor_sim.get(v_uid, 0.0) + sim_uv
+    # 近傍 top-k
+    if K_neigh > 0 and sim_users.numel() > K_neigh:
+        vals_top, idx_top = torch.topk(sim_users, k=K_neigh)
+        mask_top = vals_top > 0
+        sim_vec = torch.zeros_like(sim_users)
+        if mask_top.any():
+            sim_vec[idx_top[mask_top]] = vals_top[mask_top]
+    else:
+        sim_vec = torch.where(sim_users > 0, sim_users, torch.zeros_like(sim_users))
 
-    if not neighbor_sim:
-        return None
-
-    # 近傍Top-Kで絞り込み（K<=0なら全件）
-    if K_neigh > 0 and len(neighbor_sim) > K_neigh:
-        # neighbor_sim は dict: uid -> sim。上位Kのみ残す
-        top_items = sorted(neighbor_sim.items(), key=lambda kv: kv[1], reverse=True)[:K_neigh]
-        neighbor_sim = {uid: sim for uid, sim in top_items}
-
-    K_cand = int(CF_CANDIDATE_TOP_K)
-    rows = []
-    vals = []
-    for v_uid, sim_val in neighbor_sim.items():
-        row_v = user_like_w.get(v_uid, {})
-        if not row_v:
-            continue
-        for ridx_j, dq_vj in list(row_v.items()):
-            while dq_vj and (step - dq_vj[0] > CF_HISTORY_WINDOW_STEPS):
-                dq_vj.popleft()
-            if not dq_vj:
-                row_v.pop(ridx_j, None)
-                continue
-            if ridx_j in liked_ridx_self:
-                continue
-            weight = float(len(dq_vj))
-            if weight <= 0.0:
-                continue
-            rows.append(int(ridx_j))
-            vals.append(float(sim_val) * weight)
-
-    if not rows:
+    if sim_vec.sum() <= 0:
         cid = target_agent.next_unseen_random_cid(len(isc_obj.pool))
         return (np.asarray([cid], dtype=np.int64), np.asarray([1.0], dtype=np.float64))
 
-    scores_t = torch.zeros(len(_CONTENT_IDS), dtype=torch.float32, device=DEVICE)
-    idxs_t = torch.tensor(rows, dtype=torch.long, device=DEVICE)
-    vals_t = torch.tensor(vals, dtype=torch.float32, device=DEVICE)
-    scores_t.index_add_(0, idxs_t, vals_t)
-    scores = scores_t.detach().cpu().numpy()
+    # 候補アイテムスコア（VU: item x user）* sim_vec(user)
+    try:
+        cand_scores = torch.sparse.mm(VU, sim_vec.view(-1, 1)).squeeze(1)
+    except Exception:
+        return None
 
-    mask = np.ones_like(scores, dtype=bool)
+    scores_np = cand_scores.detach().cpu().numpy()
+
+    mask = np.ones_like(scores_np, dtype=bool)
     if seen_ridx_arr is not None:
         mask[seen_ridx_arr] = False
 
-    finite = np.isfinite(scores) & mask
+    finite = np.isfinite(scores_np) & mask
     if not finite.any():
         cid = target_agent.next_unseen_random_cid(len(isc_obj.pool))
         return (np.asarray([cid], dtype=np.int64), np.asarray([1.0], dtype=np.float64))
 
     face_str = str(face).lower() if face is not None else "affinity"
     if face_str == "novelty":
-        for ridx in np.where(finite)[0]:
-            content = isc_obj.pool[int(ridx)]
-            cos = _safe_sim_alpha(target_agent.interests, content.vector, 1.0)
-            if cos == "":
-                cos = 0.0
-            scores[ridx] = 1.0 - float(cos)
+        try:
+            ridx_fin = np.where(finite)[0]
+            if ridx_fin.size > 0:
+                ridx_t = torch.as_tensor(ridx_fin, device=DEVICE, dtype=torch.long)
+                Cg = globals()["_CONTENT_G_RAW_T"][ridx_t]
+                u = _to_t(target_agent.interests, device=DEVICE, dtype=torch.float32)
+                u_norm = torch.linalg.vector_norm(u).clamp_min(1e-12)
+                cg_norm = torch.linalg.vector_norm(Cg, dim=1).clamp_min(1e-12)
+                cos_t = (Cg @ u) / (cg_norm * u_norm)
+                cos_np = cos_t.detach().cpu().numpy()
+                scores_np[ridx_fin] = 1.0 - cos_np
+        except Exception:
+            # フォールバック：CPUループ
+            for ridx in np.where(finite)[0]:
+                content = isc_obj.pool[int(ridx)]
+                cos = _safe_sim_alpha(target_agent.interests, content.vector, 1.0)
+                if cos == "":
+                    cos = 0.0
+                scores_np[ridx] = 1.0 - float(cos)
 
-    vals = scores[finite]
+    vals = scores_np[finite]
     ids = _CONTENT_IDS[finite]
     if K_cand > 0 and vals.size > K_cand:
         part_idx = np.argpartition(-vals, K_cand - 1)[:K_cand]
@@ -2477,26 +2482,11 @@ def _cf_candidates_core_gpu(isc_obj, target_agent, step: int, *, lam: float, fac
         vals = vals[keep]
         ids = ids[keep]
     probs = softmax_arr(vals, lam=float(lam))
-    # safety: 万一空になった場合
     if ids.size == 0:
         cid = target_agent.next_unseen_random_cid(len(isc_obj.pool))
         return (np.asarray([cid], dtype=np.int64), np.asarray([1.0], dtype=np.float64))
     return ids, probs
 
-
-def _pick_ids_via_cpu_algorithm(isc_obj, agents, step):
-    """
-    DISPLAY_ALGORITHM が cbf_user / cf_item のように CPU 実装のみ存在する場合に、
-    既存の ISC.get_content_for をそのまま呼び出して content.id の配列を返すヘルパ。
-    """
-    picked_ids = np.empty(len(agents), dtype=np.int64)
-    for idx, agent in enumerate(agents):
-        content = isc_obj.get_content_for(step, agent=agent, agents=agents)
-        cid = getattr(content, "id", None)
-        if cid is None:
-            cid = agent.next_unseen_random_cid(len(isc_obj.pool))
-        picked_ids[idx] = int(cid)
-    return torch.from_numpy(picked_ids).to(DEVICE)
 
 def _random_interval_active(step: int) -> bool:
     """初期ランダム終了後にランダムウィンドウを挿入するか判定"""
@@ -2578,16 +2568,15 @@ for step in range(MAX_STEPS):
 
     else:
         # random 以外のアルゴリズム（通常経路）
-        # GPU バッチで候補選択
+        # GPU バッチで候補選択（未対応アルゴリズムは None を返す想定）
         picked_idx = engine.pick_contents(
             DISPLAY_ALGORITHM,
             step,
             isc,
             agents,
         )
-        # GPU 未対応アルゴリズム（cf_user / cf_item 等）は CPU フォールバック
         if picked_idx is None:
-            picked_idx = _pick_ids_via_cpu_algorithm(isc, agents, step)
+            raise ValueError(f"Unsupported DISPLAY_ALGORITHM for GPU path: {DISPLAY_ALGORITHM}")
 
     # ---- GPU で like / dig 判定を一括実行 ----
     like_flags, dig_flags, j_dims, p_like_arr, p_dig_arr = engine.like_and_dig_batch(
@@ -3640,7 +3629,7 @@ def plot_avg_dig_rank(agents, *, out_path=None):
     return out_path
 
 
-def emit_all_outputs(agents, contents, *, out_prefix=OUT_PREFIX):
+def emit_all_outputs(agents, contents, *, out_prefix=OUT_PREFIX_FACE):
     """
     すべての出力関数を一括で実行:
       - コンソール出力（print_*）
@@ -3684,6 +3673,6 @@ def emit_all_outputs(agents, contents, *, out_prefix=OUT_PREFIX):
         log_and_print(f"⚠️ 図の書き出しに失敗しました: {e}")
 
 # シミュレーション完了後の集約出力
-emit_all_outputs(agents, isc.pool, out_prefix=OUT_PREFIX)
+emit_all_outputs(agents, isc.pool, out_prefix=OUT_PREFIX_FACE)
 log_and_print(f"✅ ログを書き出しました -> {LOG_FILE_PATH}")
 write_log_file(LOG_FILE_PATH)
