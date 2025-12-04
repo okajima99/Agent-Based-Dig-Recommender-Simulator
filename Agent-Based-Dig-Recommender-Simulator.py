@@ -1574,10 +1574,16 @@ class ISC:
                 self.cf_user_sim_matrix_t = sim_mat
             except Exception:
                 self.cf_user_sim_matrix_t = None
+            try:
+                item_sim_mat = torch.sparse.mm(self.VU_matrix, self.UV_matrix).to(torch.float32)
+                self.cf_item_sim_matrix_t = item_sim_mat
+            except Exception:
+                self.cf_item_sim_matrix_t = None
         else:
             self.UV_matrix = None
             self.VU_matrix = None
             self.cf_user_sim_matrix_t = None
+            self.cf_item_sim_matrix_t = None
         self.cf_last_built_step = step
 
         if step > self.last_decay_step:
@@ -2363,23 +2369,23 @@ def cf_user_candidates(isc_obj, uid: int, step: int, agents, *, face: str = "aff
 
 def cf_item_candidates(isc_obj, uid: int, step: int, agents, *, face: str = "affinity"):
     """
-    現状の仕様では、CF(item-based) も user-based と同じロジックを使う。
-    将来的に本当の item-based にしたくなったらここを差し替えればOK。
-
-    戻り値:
-        ids  : np.ndarray[int]  （content_id 群）
-        probs: np.ndarray[float]（対応する確率）
+    item-based CF: ユーザーの視聴/likeアイテムとの類似度（item×item）に基づく候補。
     """
     target_agent = agents[int(uid)]
-    return _cf_candidates_core(
+    res = _cf_item_candidates_gpu(
         isc_obj,
         target_agent,
-        step,
+        step=step,
         lam=LAMBDA_CF_ITEM,
         face=face,
         neigh_k=CF_ITEM_NEIGHBOR_TOP_K,
         cand_k=CF_ITEM_CANDIDATE_TOP_K,
     )
+    if res is not None:
+        return res
+    # GPU計算に失敗した場合のフォールバック（未視聴ランダム）
+    cid = target_agent.next_unseen_random_cid(len(isc_obj.pool))
+    return (np.asarray([cid], dtype=np.int64), np.asarray([1.0], dtype=np.float64))
 
 
 def _cf_candidates_core_gpu(isc_obj, target_agent, step: int, *, lam: float, face: str, neigh_k: int, cand_k: int):
@@ -2476,6 +2482,121 @@ def _cf_candidates_core_gpu(isc_obj, target_agent, step: int, *, lam: float, fac
 
     vals = scores_np[finite]
     ids = _CONTENT_IDS[finite]
+    if K_cand > 0 and vals.size > K_cand:
+        part_idx = np.argpartition(-vals, K_cand - 1)[:K_cand]
+        keep = part_idx[np.argsort(-vals[part_idx])]
+        vals = vals[keep]
+        ids = ids[keep]
+    probs = softmax_arr(vals, lam=float(lam))
+    if ids.size == 0:
+        cid = target_agent.next_unseen_random_cid(len(isc_obj.pool))
+        return (np.asarray([cid], dtype=np.int64), np.asarray([1.0], dtype=np.float64))
+    return ids, probs
+
+
+def _cf_item_candidates_gpu(isc_obj, target_agent, step: int, *, lam: float, face: str, neigh_k: int, cand_k: int):
+    """
+    item-based CF (GPU):
+      - ユーザーが like したアイテム群を重み付きベクトル w (item 次元) にして
+      - 可能なら事前計算の item×item 類似行列（VU@UV）を使って scores = S @ w
+      - 無ければ z = UV @ w → scores = VU @ z で「既視聴以外のアイテム」スコアを得る
+    """
+    global _CONTENT_IDS, _ID2ROW
+    ensure_content_index(isc_obj.pool)
+    if (_CONTENT_IDS is None) or (len(_CONTENT_IDS) == 0):
+        return None
+
+    UV = getattr(isc_obj, "UV_matrix", None)  # User x Item (sparse)
+    VU = getattr(isc_obj, "VU_matrix", None)  # Item x User (sparse)
+    S_item = getattr(isc_obj, "cf_item_sim_matrix_t", None)  # Item x Item (sparse)
+    if UV is None or VU is None:
+        return None
+
+    uid = int(target_agent.id)
+    row_self = isc_obj.user_like_w.get(uid, {})
+    if not row_self:
+        cid = target_agent.next_unseen_random_cid(len(isc_obj.pool))
+        return (np.asarray([cid], dtype=np.int64), np.asarray([1.0], dtype=np.float64))
+
+    # 近過去のみ残して重みを計算
+    liked_items: list[tuple[int, float]] = []
+    for ridx, dq in list(row_self.items()):
+        while dq and (step - dq[0] > CF_HISTORY_WINDOW_STEPS):
+            dq.popleft()
+        if dq:
+            liked_items.append((int(ridx), float(len(dq))))
+        else:
+            row_self.pop(ridx, None)
+
+    if not liked_items:
+        cid = target_agent.next_unseen_random_cid(len(isc_obj.pool))
+        return (np.asarray([cid], dtype=np.int64), np.asarray([1.0], dtype=np.float64))
+
+    # 近傍アイテム（ユーザー履歴）を top-k で絞る
+    K_neigh = int(neigh_k)
+    if K_neigh > 0 and len(liked_items) > K_neigh:
+        liked_items.sort(key=lambda t: t[1], reverse=True)
+        liked_items = liked_items[:K_neigh]
+
+    num_items = len(_CONTENT_IDS)
+    try:
+        w = torch.zeros(num_items, device=DEVICE, dtype=torch.float32)
+        for ridx, wgt in liked_items:
+            if 0 <= ridx < num_items:
+                w[ridx] = float(wgt)
+
+        if S_item is not None:
+            # 事前計算した item×item 類似行列を利用
+            scores_t = torch.sparse.mm(S_item, w.view(-1, 1)).squeeze(1)
+        else:
+            # 共起二段計算（以前の方式）
+            z = torch.sparse.mm(UV, w.view(-1, 1)).squeeze(1)  # (U,)
+            scores_t = torch.sparse.mm(VU, z.view(-1, 1)).squeeze(1)  # (I,)
+
+        scores_np = scores_t.detach().cpu().numpy()
+    except Exception:
+        return None
+
+    seen_ids = target_agent.seen_content_ids
+    seen_ridx_arr = None
+    if seen_ids:
+        ridx_seen = [_ID2ROW.get(int(cid)) for cid in seen_ids if _ID2ROW.get(int(cid)) is not None]
+        if ridx_seen:
+            seen_ridx_arr = np.asarray(ridx_seen, dtype=np.int64)
+
+    mask = np.ones_like(scores_np, dtype=bool)
+    if seen_ridx_arr is not None:
+        mask[seen_ridx_arr] = False
+
+    finite = np.isfinite(scores_np) & mask
+    if not finite.any():
+        cid = target_agent.next_unseen_random_cid(len(isc_obj.pool))
+        return (np.asarray([cid], dtype=np.int64), np.asarray([1.0], dtype=np.float64))
+
+    face_str = str(face).lower() if face is not None else "affinity"
+    if face_str == "novelty":
+        try:
+            ridx_fin = np.where(finite)[0]
+            if ridx_fin.size > 0:
+                ridx_t = torch.as_tensor(ridx_fin, device=DEVICE, dtype=torch.long)
+                Cg = globals()["_CONTENT_G_RAW_T"][ridx_t]
+                u = _to_t(target_agent.interests, device=DEVICE, dtype=torch.float32)
+                u_norm = torch.linalg.vector_norm(u).clamp_min(1e-12)
+                cg_norm = torch.linalg.vector_norm(Cg, dim=1).clamp_min(1e-12)
+                cos_t = (Cg @ u) / (cg_norm * u_norm)
+                cos_np = cos_t.detach().cpu().numpy()
+                scores_np[ridx_fin] = 1.0 - cos_np
+        except Exception:
+            for ridx in np.where(finite)[0]:
+                content = isc_obj.pool[int(ridx)]
+                cos = _safe_sim_alpha(target_agent.interests, content.vector, 1.0)
+                if cos == "":
+                    cos = 0.0
+                scores_np[ridx] = 1.0 - float(cos)
+
+    vals = scores_np[finite]
+    ids = _CONTENT_IDS[finite]
+    K_cand = int(cand_k)
     if K_cand > 0 and vals.size > K_cand:
         part_idx = np.argpartition(-vals, K_cand - 1)[:K_cand]
         keep = part_idx[np.argsort(-vals[part_idx])]
