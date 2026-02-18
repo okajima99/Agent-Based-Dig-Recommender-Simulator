@@ -10,3 +10,10 @@
 `engine/` contains the core logic for recommendation and reaction computation.
 
 Supporting responsibilities are separated into `agents/`, `steps/`, `utils/`, and `core/`.
+
+## Environment
+- Python 3.10+
+- NumPy
+- PyTorch
+- CUDA-capable GPU + NVIDIA Driver (default configuration)
+- Optional CPU execution by setting `STRICT_CUDA=0`
