@@ -24,6 +24,8 @@ class SimulationResult:
     out_prefix: str
     out_prefix_face: str | None
     log_file_path: str | None
+    analysis_run_id: str | None
+    analysis_log_dir: str | None
     namespace: dict[str, Any]
 
 
@@ -93,6 +95,12 @@ def run_simulation(config: SimulationConfig) -> SimulationResult:
     log_file_path = namespace.get("LOG_FILE_PATH")
     if log_file_path is not None:
         log_file_path = str(log_file_path)
+    analysis_run_id = namespace.get("ANALYSIS_RUN_ID")
+    if analysis_run_id is not None:
+        analysis_run_id = str(analysis_run_id)
+    analysis_log_dir = namespace.get("ANALYSIS_LOG_DIR")
+    if analysis_log_dir is not None:
+        analysis_log_dir = str(analysis_log_dir)
 
     return SimulationResult(
         script_path=script_path,
@@ -100,14 +108,27 @@ def run_simulation(config: SimulationConfig) -> SimulationResult:
         out_prefix=out_prefix,
         out_prefix_face=str(out_prefix_face) if out_prefix_face is not None else None,
         log_file_path=log_file_path,
+        analysis_run_id=analysis_run_id,
+        analysis_log_dir=analysis_log_dir,
         namespace=namespace,
     )
 
 
 def emit_all_outputs(result: SimulationResult, config: SimulationConfig) -> None:
+    def display_path(path_value: str | Path) -> str:
+        p = Path(path_value).expanduser()
+        try:
+            return str(p.resolve().relative_to(Path.cwd().resolve()))
+        except Exception:
+            return str(p)
+
     # core intentionally excludes analysis/CSV section from plot23 line 3282+.
     print(f"[研究] simulation complete in {result.elapsed_sec:.2f}s")
-    print(f"[研究] script={result.script_path}")
+    print(f"[研究] script={display_path(result.script_path)}")
     print(f"[研究] out_prefix={result.out_prefix}")
     if result.log_file_path:
-        print(f"[研究] log_file={result.log_file_path}")
+        print(f"[研究] log_file={display_path(result.log_file_path)}")
+    if result.analysis_run_id:
+        print(f"[研究] analysis_run_id={result.analysis_run_id}")
+    if result.analysis_log_dir:
+        print(f"[研究] analysis_log_dir={display_path(result.analysis_log_dir)}")

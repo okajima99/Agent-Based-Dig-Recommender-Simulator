@@ -1,6 +1,7 @@
 # ============================================================================
 # Imports & 基本セットアップ
 # ============================================================================
+from pathlib import Path
 import random
 import time
 import numpy as np
@@ -163,6 +164,14 @@ def _configure_user_agent_hooks():
 # 実行セットアップ
 # ============================================================================
 
+def _display_path(path_value) -> str:
+    path_obj = Path(path_value).expanduser()
+    try:
+        return str(path_obj.resolve().relative_to(Path.cwd().resolve()))
+    except Exception:
+        return str(path_obj)
+
+
 def run_core():
     isc, agents, engine = build_world(
         isc_cls=ISC,
@@ -178,85 +187,114 @@ def run_core():
     globals()["isc"] = isc
     globals()["agents"] = agents
     globals()["engine"] = engine
+    analysis_logger = create_analysis_logger(
+        base_dir=str(ANALYSIS_LOG_DIR),
+        display_algorithm=str(DISPLAY_ALGORITHM),
+        cbf_face=str(CBF_FACE),
+        cf_item_face=str(CF_ITEM_FACE),
+        cf_user_face=str(CF_USER_FACE),
+        random_seed=int(RANDOM_SEED),
+        flush_every_steps=int(ANALYSIS_LOG_FLUSH_EVERY_STEPS),
+        impression_flush_rows=int(ANALYSIS_LOG_IMPRESSION_FLUSH_ROWS),
+        buffer_max_rows=int(ANALYSIS_LOG_BUFFER_MAX_ROWS),
+        compression=str(ANALYSIS_LOG_COMPRESSION),
+    )
+    log_path = Path(analysis_logger.run_dir) / f"{OUT_PREFIX_FACE}_analysis.txt"
+    globals()["LOG_FILE_PATH"] = set_log_file_path(str(log_path))
+    globals()["analysis_logger"] = analysis_logger
+    log_and_print(f"[analysis] run_id={analysis_logger.run_id}")
+    log_and_print(f"[analysis] dir={_display_path(analysis_logger.run_dir)}")
+    analysis_logger.log_run_config(_CORE_PARAMS)
+    analysis_logger.log_agent_init_batch(agents)
 
     t0 = time.time()
     prev_force_random = False
-    for step in range(MAX_STEPS):
-        log_on = (LOG_PROGRESS_EVERY > 0) and (step % LOG_PROGRESS_EVERY == 0)
-        t_step_start = time.time() if log_on else None
+    try:
+        for step in range(MAX_STEPS):
+            log_on = (LOG_PROGRESS_EVERY > 0) and (step % LOG_PROGRESS_EVERY == 0)
+            t_step_start = time.time() if log_on else None
 
-        force_random = prepare_step(
-            step,
-            prev_force_random=prev_force_random,
-            isc=isc,
-            agents=agents,
-            display_algorithm=DISPLAY_ALGORITHM,
-            initial_random_steps=INITIAL_RANDOM_STEPS,
-            random_interval_active=_random_interval_active,
-            pop_cache_duration=POP_CACHE_DURATION,
-            trend_cache_duration=TREND_CACHE_DURATION,
-            buzz_cache_duration=BUZZ_CACHE_DURATION,
-            replenish_map=_REPLENISH_MAP,
-            engine=engine,
-            update_global_pop_scores=update_global_pop_scores,
-            update_global_trend_scores=update_global_trend_scores_global,
-            update_global_buzz_scores=update_global_buzz_scores,
-        )
-
-        picked_idx = pick_indices(
-            step,
-            display_algorithm=DISPLAY_ALGORITHM,
-            force_random=force_random,
-            isc=isc,
-            agents=agents,
-            engine=engine,
-            num_agents=NUM_AGENTS,
-            device=DEVICE,
-            torch_module=torch,
-        )
-        t_after_pick = time.time() if log_on else None
-
-        reaction_result = run_reaction_batch(
-            step,
-            isc=isc,
-            agents=agents,
-            picked_idx_t=picked_idx,
-            engine=engine,
-            device=DEVICE,
-            torch_module=torch,
-        )
-        t_after_like = time.time() if log_on else None
-
-        apply_step_updates(
-            step,
-            isc=isc,
-            agents=agents,
-            engine=engine,
-            picked_idx_t=picked_idx,
-            reaction_result=reaction_result,
-            device=DEVICE,
-            torch_module=torch,
-            num_agents=NUM_AGENTS,
-            dig_g_step=DIG_G_STEP,
-            dig_v_range=DIG_V_RANGE,
-            cf_history_window_steps=CF_HISTORY_WINDOW_STEPS,
-            get_id2row=_get_id2row,
-            random_module=random,
-        )
-
-        if (step + 1) % 500 == 0:
-            elapsed = time.time() - t0
-            log_and_print(f"[GPU batch] step {step+1}/{MAX_STEPS} 経過 ({elapsed:.1f}s)", flush=False)
-
-        if log_on:
-            t_end = time.time()
-            log_and_print(
-                f"[step {step}] pick={t_after_pick - t_step_start:.3f}s, like/dig={t_after_like - t_after_pick:.3f}s, "
-                f"book={t_end - t_after_like:.3f}s, total={t_end - t_step_start:.3f}s",
-                flush=False,
+            force_random, random_interval_active_flag = prepare_step(
+                step,
+                prev_force_random=prev_force_random,
+                isc=isc,
+                agents=agents,
+                display_algorithm=DISPLAY_ALGORITHM,
+                initial_random_steps=INITIAL_RANDOM_STEPS,
+                random_interval_active=_random_interval_active,
+                pop_cache_duration=POP_CACHE_DURATION,
+                trend_cache_duration=TREND_CACHE_DURATION,
+                buzz_cache_duration=BUZZ_CACHE_DURATION,
+                replenish_map=_REPLENISH_MAP,
+                engine=engine,
+                update_global_pop_scores=update_global_pop_scores,
+                update_global_trend_scores=update_global_trend_scores_global,
+                update_global_buzz_scores=update_global_buzz_scores,
+                logger=analysis_logger,
             )
 
-        prev_force_random = force_random
+            picked_idx = pick_indices(
+                step,
+                display_algorithm=DISPLAY_ALGORITHM,
+                force_random=force_random,
+                isc=isc,
+                agents=agents,
+                engine=engine,
+                num_agents=NUM_AGENTS,
+                device=DEVICE,
+                torch_module=torch,
+            )
+            t_after_pick = time.time() if log_on else None
+
+            reaction_result = run_reaction_batch(
+                step,
+                isc=isc,
+                agents=agents,
+                picked_idx_t=picked_idx,
+                engine=engine,
+                device=DEVICE,
+                torch_module=torch,
+            )
+            t_after_like = time.time() if log_on else None
+
+            apply_step_updates(
+                step,
+                isc=isc,
+                agents=agents,
+                engine=engine,
+                picked_idx_t=picked_idx,
+                reaction_result=reaction_result,
+                device=DEVICE,
+                torch_module=torch,
+                num_agents=NUM_AGENTS,
+                dig_g_step=DIG_G_STEP,
+                dig_v_range=DIG_V_RANGE,
+                cf_history_window_steps=CF_HISTORY_WINDOW_STEPS,
+                get_id2row=_get_id2row,
+                random_module=random,
+                logger=analysis_logger,
+                random_interval_active=random_interval_active_flag,
+            )
+            analysis_logger.maybe_flush_step(step)
+
+            if (step + 1) % 500 == 0:
+                elapsed = time.time() - t0
+                log_and_print(f"[GPU batch] step {step+1}/{MAX_STEPS} 経過 ({elapsed:.1f}s)", flush=False)
+
+            if log_on:
+                t_end = time.time()
+                log_and_print(
+                    f"[step {step}] pick={t_after_pick - t_step_start:.3f}s, like/dig={t_after_like - t_after_pick:.3f}s, "
+                    f"book={t_end - t_after_like:.3f}s, total={t_end - t_step_start:.3f}s",
+                    flush=False,
+                )
+
+            prev_force_random = force_random
+    finally:
+        analysis_logger.log_agent_final_batch(agents)
+        analysis_logger.log_content_final_batch(isc.pool, final_step=(MAX_STEPS - 1))
+        analysis_logger.close()
+        close_log_file()
 
     log_and_print("🔥 GPU バッチ版シミュレーション完了")
     return {
@@ -265,7 +303,9 @@ def run_core():
         "engine": engine,
         "OUT_PREFIX": OUT_PREFIX,
         "OUT_PREFIX_FACE": OUT_PREFIX_FACE,
-        "LOG_FILE_PATH": LOG_FILE_PATH,
+        "LOG_FILE_PATH": _display_path(LOG_FILE_PATH),
+        "ANALYSIS_RUN_ID": analysis_logger.run_id,
+        "ANALYSIS_LOG_DIR": _display_path(analysis_logger.run_dir),
     }
 
 

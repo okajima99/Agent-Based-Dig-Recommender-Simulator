@@ -16,7 +16,10 @@ def sigmoid01_impl(x, k: float, x0: float) -> float:
 
 def softmax_arr(x, lam: float = 1.0):
     arr = np.asarray(x, dtype=np.float64)
-    arr = np.exp(float(lam) * (arr - np.max(arr)))
+    temperature = float(lam)
+    if (not np.isfinite(temperature)) or (temperature <= 0.0):
+        temperature = 1e-6
+    arr = np.exp((arr - np.max(arr)) / temperature)
     s = arr.sum()
     return arr / s if s > 0 else np.ones_like(arr) / len(arr)
 

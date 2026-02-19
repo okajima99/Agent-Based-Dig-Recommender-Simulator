@@ -33,6 +33,10 @@ def rebuild_cf_sync(
     cf_history_window_steps: int,
     cf_discount_gamma: float,
     cf_cache_duration: int,
+    logger=None,
+    cache_reason: str = "ttl",
+    timer_before: int | None = None,
+    random_interval_active: bool = False,
 ):
     user_count = len(agents)
     item_count = len(isc_obj.pool)
@@ -120,6 +124,22 @@ def rebuild_cf_sync(
         agent.cf_user_score_cache = []
         agent.cf_item_score_cache = []
         agent.cf_cache_timer = 0
+
+    if logger is not None and getattr(logger, "enabled", False):
+        event_id = logger.log_cache_refresh_event(
+            step=int(step),
+            cache_name="cf_matrix",
+            reason=cache_reason,
+            action="rebuild",
+            timer_before=timer_before,
+            timer_after=int(cf_cache_duration),
+            random_interval_active=random_interval_active,
+        )
+        logger.log_cache_state_cf(
+            event_id=event_id,
+            step=int(step),
+            uv_matrix=getattr(isc_obj, "UV_matrix", None),
+        )
 
 
 def stage_cf_like(isc_obj, uid: int, cid: int, step_like: int, *, get_id2row):

@@ -12,6 +12,10 @@ import os
 from pathlib import Path
 from typing import Mapping
 
+def _default_analysis_log_dir() -> str:
+    # 実行ディレクトリ基準で保存する。
+    return str((Path.cwd() / "analysis_logs").resolve())
+
 # -----------------------------------------------------------------------------
 # Core Default Parameters (single source of defaults)
 # -----------------------------------------------------------------------------
@@ -25,12 +29,16 @@ CORE_PARAM_DEFAULTS: dict[str, object] = {
     "STRICT_CUDA": True,
     "RANDOM_SEED": 42,
     "LOG_PROGRESS_EVERY": 100,
+    "ANALYSIS_LOG_FLUSH_EVERY_STEPS": 20,
+    "ANALYSIS_LOG_IMPRESSION_FLUSH_ROWS": 20000,
+    "ANALYSIS_LOG_BUFFER_MAX_ROWS": 100000,
+    "ANALYSIS_LOG_COMPRESSION": "zstd",
     # Scale
     "NUM_GENRES": 10,
     "NUM_INSTINCT_DIM": 5,
     "NUM_AGENTS": 1000,
     "NUM_CONTENTS": 30000,
-    "MAX_STEPS": 100000,
+    "MAX_STEPS": 200000,
     "INITIAL_RANDOM_STEPS": 0,
     # Random Schedule
     "RANDOM_INTERVAL_ON": True,
@@ -39,12 +47,12 @@ CORE_PARAM_DEFAULTS: dict[str, object] = {
     "RANDOM_REPEAT_POLICY": "reset_when_exhausted",
     # Replenish
     "REPLENISH_EVERY": 6000,
-    "REPLENISH_COUNT": 60000,
+    "REPLENISH_COUNT": 30000,
     "REPLENISH_START_STEP": 0,
     "REPLENISH_END_STEP": None,
     # Modes
     "AGENT_ALPHA": 0.0,
-    "CONTENT_G_ACTIVE": 1,
+    "CONTENT_G_ACTIVE": 3,
     "CONTENT_I_ACTIVE": 3,
     "CONTENT_G_MODE": "random",
     "CONTENT_I_MODE": "random",
@@ -63,7 +71,7 @@ CORE_PARAM_DEFAULTS: dict[str, object] = {
     "CONTENT_I_NORM_SIGMA": 0.35,
     "AGENT_G_MU": 0.15,
     "AGENT_G_SIGMA": 0.07,
-    "AGENT_G_NORM_MU": 0.11,
+    "AGENT_G_NORM_MU": 0.47,
     "AGENT_G_NORM_SIGMA": 0.01,
     "AGENT_V_MU": 0.00,
     "AGENT_V_SIGMA": 0.50,
@@ -74,11 +82,11 @@ CORE_PARAM_DEFAULTS: dict[str, object] = {
     "AGENT_I_NORM_MU": 1.30,
     "AGENT_I_NORM_SIGMA": 0.35,
     # Like / Dig
-    "LOGIT_K": 13.94,
-    "LOGIT_X0": 0.6108,
+    "LOGIT_K": 10.00,
+    "LOGIT_X0": 1.218,
     "LIKE_DIVISOR": 3.0,
-    "DIG_LOGIT_K": 16.86,
-    "DIG_LOGIT_X0": 0.2888,
+    "DIG_LOGIT_K": 10.00,
+    "DIG_LOGIT_X0": 0.361,
     "DIG_DIVISOR": 60.0,
     "DIG_G_STEP": 0.00115,
     "DIG_V_RANGE": 0.10,
@@ -100,7 +108,7 @@ CORE_PARAM_DEFAULTS: dict[str, object] = {
     # Metrics / Cache / Candidates
     "TREND_EMA_ALPHA": 0.0002,
     "TREND_CACHE_DURATION": 1000,
-    "BUZZ_WINDOW": 3000,
+    "BUZZ_WINDOW": 10000,
     "BUZZ_GAMMA": 0.9990,
     "BUZZ_CACHE_DURATION": 1000,
     "POP_CACHE_DURATION": 1000,
@@ -118,12 +126,14 @@ CORE_PARAM_DEFAULTS: dict[str, object] = {
     # None means fallback to CF_USER_* in resolver.
     "CF_ITEM_NEIGHBOR_TOP_K": None,
     "CF_ITEM_CANDIDATE_TOP_K": None,
-    "LAMBDA_POPULARITY": 30.0,
-    "LAMBDA_TREND": 30.0,
-    "LAMBDA_BUZZ": 30.0,
-    "LAMBDA_CBF": 30.0,
-    "LAMBDA_CF_USER": 100.0,
-    "LAMBDA_CF_ITEM": 100.0,
+    # Softmax temperature T (larger -> flatter, smaller -> sharper).
+    # These defaults are reciprocal-adjusted to preserve prior behavior.
+    "LAMBDA_POPULARITY": 0.033,
+    "LAMBDA_TREND": 0.033,
+    "LAMBDA_BUZZ": 0.033,
+    "LAMBDA_CBF": 0.033,
+    "LAMBDA_CF_USER": 0.033,
+    "LAMBDA_CF_ITEM": 0.033,
 }
 
 
@@ -204,6 +214,8 @@ def load_core_params(env: Mapping[str, str] | None = None) -> dict[str, object]:
     )
 
     out: dict[str, object] = dict(resolved)
+    # 分析ログ出力先は常に実行ディレクトリ配下へ固定（環境変数上書きなし）。
+    out["ANALYSIS_LOG_DIR"] = _default_analysis_log_dir()
     out["content_g_active"] = int(resolved["CONTENT_G_ACTIVE"])
     out["content_i_active"] = int(resolved["CONTENT_I_ACTIVE"])
     out["content_G_PARAMS"] = {

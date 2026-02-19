@@ -75,7 +75,16 @@ def build_isc_class(
                 require_content_ids=require_content_ids_fn,
             )
 
-        def _rebuild_cf_sync(self, step: int, agents):
+        def _rebuild_cf_sync(
+            self,
+            step: int,
+            agents,
+            *,
+            logger=None,
+            cache_reason: str = "ttl",
+            timer_before: int | None = None,
+            random_interval_active: bool = False,
+        ):
             self._apply_pending_cf_likes()
             rebuild_cf_sync_state_fn(
                 self,
@@ -85,9 +94,23 @@ def build_isc_class(
                 cf_history_window_steps=_ctx("CF_HISTORY_WINDOW_STEPS"),
                 cf_discount_gamma=_ctx("CF_DISCOUNT_GAMMA"),
                 cf_cache_duration=_ctx("CF_CACHE_DURATION"),
+                logger=logger,
+                cache_reason=cache_reason,
+                timer_before=timer_before,
+                random_interval_active=random_interval_active,
             )
 
-        def _rebuild_cbf_pseudo_batch(self, step: int, agents):
+        def _rebuild_cbf_pseudo_batch(
+            self,
+            step: int,
+            agents,
+            *,
+            logger=None,
+            cache_reason: str = "ttl",
+            timer_before: int | None = None,
+            timer_after: int | None = None,
+            random_interval_active: bool = False,
+        ):
             rebuild_cbf_pseudo_batch_state_fn(
                 self,
                 step,
@@ -96,6 +119,11 @@ def build_isc_class(
                 num_instinct_dim=_ctx("NUM_INSTINCT_DIM"),
                 to_t=_ctx("_to_t"),
                 device=_ctx("DEVICE"),
+                logger=logger,
+                cache_reason=cache_reason,
+                timer_before=timer_before,
+                timer_after=timer_after,
+                random_interval_active=random_interval_active,
             )
 
         def stage_cf_like(self, uid: int, cid: int, step_like: int):
@@ -145,6 +173,7 @@ def build_isc_class(
                 apply_pending_cf_likes=self._apply_pending_cf_likes,
                 rebuild_cf_sync=self._rebuild_cf_sync,
                 rebuild_cbf_pseudo_batch=self._rebuild_cbf_pseudo_batch,
+                logger=context.get("analysis_logger"),
             )
 
     return ISC

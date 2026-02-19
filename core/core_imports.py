@@ -13,14 +13,14 @@ try:
         reaction_gpu,
     )
     from ..steps import step_flow
-    from ..utils import log_buffer, math_utils, runtime, vector_generators
+    from ..utils import analysis_logger, log_buffer, math_utils, runtime, vector_generators
     from . import bootstrap, content_domain, content_index, core_helpers, isc_model
 except ImportError:
     from agents import agent_history, agent_hooks, agent_model, agent_random, agent_reaction, agent_recommendation
     from config import load_core_params
     from engine import cbf_state, cf_state, engine_algorithms, engine_gpu, engine_state, global_scores, reaction_gpu
     from steps import step_flow
-    from utils import log_buffer, math_utils, runtime, vector_generators
+    from utils import analysis_logger, log_buffer, math_utils, runtime, vector_generators
     from core import bootstrap, content_domain, content_index, core_helpers, isc_model
 
 
@@ -70,6 +70,7 @@ def load_core_symbols() -> dict[str, object]:
         "update_global_trend_scores_state": global_scores.update_global_trend_scores,
         "build_world": bootstrap.build_world,
         "setup_logging": log_buffer.setup_logging,
+        "create_analysis_logger": analysis_logger.create_analysis_logger,
         "load_core_params": load_core_params,
         "build_isc_class": isc_model.build_isc_class,
         "ensure_engine_seen_capacity": engine_state.ensure_seen_capacity,

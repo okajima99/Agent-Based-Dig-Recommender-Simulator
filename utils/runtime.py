@@ -65,9 +65,12 @@ def setup_torch_bindings(
         if not torch.isfinite(x_t).any():
             n = x_t.numel()
             return torch.ones(n, device=device) / n
+        temperature = float(lam)
+        if (not np.isfinite(temperature)) or (temperature <= 0.0):
+            temperature = 1e-6
         max_finite = torch.max(x_t[torch.isfinite(x_t)])
         z = x_t - max_finite
-        y = torch.exp(z * lam)
+        y = torch.exp(z / temperature)
         denom = torch.sum(y)
         if denom.item() == 0 or not torch.isfinite(denom):
             n = x_t.numel()

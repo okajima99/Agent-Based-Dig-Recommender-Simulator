@@ -114,9 +114,12 @@ def _torch_softmax_rank_t(x_t: torch.Tensor, lam: float = 1.0):
     if not bool(finite_t.any()):
         n = max(1, int(x.numel()))
         return torch.ones(n, device=x.device, dtype=torch.float32) / float(n)
+    temperature = float(lam)
+    if (not np.isfinite(temperature)) or (temperature <= 0.0):
+        temperature = 1e-6
     max_finite = torch.max(x[finite_t])
     z = x - max_finite
-    y = torch.exp(z * float(lam))
+    y = torch.exp(z / temperature)
     y = torch.where(finite_t, y, torch.zeros_like(y))
     denom = torch.sum(y)
     if (not torch.isfinite(denom)) or (float(denom.item()) <= 0.0):
@@ -140,4 +143,3 @@ def sim_on_active_alpha(u_vec, content, alpha: float):
         return 0.0
     denom = (nu * nc) ** float(alpha)
     return dot / denom
-

@@ -213,23 +213,62 @@ def bind_core_runtime(
             device=_ctx("DEVICE"),
         )
 
-    def update_global_pop_scores(isc):
+    def update_global_pop_scores(
+        isc,
+        *,
+        step: int | None = None,
+        logger=None,
+        cache_reason: str = "ttl",
+        timer_before: int | None = None,
+        timer_after: int | None = None,
+        random_interval_active: bool = False,
+    ):
         update_global_pop_scores_state_fn(
             isc,
+            step=step,
             device=_ctx("DEVICE"),
             torch_softmax_rank=_ctx("torch_softmax_rank"),
             lambda_popularity=_ctx("LAMBDA_POPULARITY"),
+            logger=logger,
+            cache_reason=cache_reason,
+            timer_before=timer_before,
+            timer_after=timer_after,
+            random_interval_active=random_interval_active,
         )
 
-    def update_global_trend_scores_global(isc):
+    def update_global_trend_scores_global(
+        isc,
+        *,
+        step: int | None = None,
+        logger=None,
+        cache_reason: str = "ttl",
+        timer_before: int | None = None,
+        timer_after: int | None = None,
+        random_interval_active: bool = False,
+    ):
         update_global_trend_scores_state_fn(
             isc,
+            step=step,
             device=_ctx("DEVICE"),
             torch_softmax_rank=_ctx("torch_softmax_rank"),
             lambda_trend=_ctx("LAMBDA_TREND"),
+            logger=logger,
+            cache_reason=cache_reason,
+            timer_before=timer_before,
+            timer_after=timer_after,
+            random_interval_active=random_interval_active,
         )
 
-    def update_global_buzz_scores(isc, step):
+    def update_global_buzz_scores(
+        isc,
+        step,
+        *,
+        logger=None,
+        cache_reason: str = "ttl",
+        timer_before: int | None = None,
+        timer_after: int | None = None,
+        random_interval_active: bool = False,
+    ):
         update_global_buzz_scores_state_fn(
             isc,
             step,
@@ -238,6 +277,11 @@ def bind_core_runtime(
             lambda_buzz=_ctx("LAMBDA_BUZZ"),
             buzz_window=_ctx("BUZZ_WINDOW"),
             buzz_gamma=_ctx("BUZZ_GAMMA"),
+            logger=logger,
+            cache_reason=cache_reason,
+            timer_before=timer_before,
+            timer_after=timer_after,
+            random_interval_active=random_interval_active,
         )
 
     def _random_interval_active(step: int) -> bool:
