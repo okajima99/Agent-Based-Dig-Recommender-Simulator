@@ -480,8 +480,10 @@ class ParquetAnalysisLogger:
         content_ids: Iterable[int],
         scores,
     ) -> None:
+        ids_np = np.asarray(list(content_ids), dtype=np.int64)
         try:
-            scores_np = np.asarray(scores.detach().cpu().numpy() if hasattr(scores, "detach") else scores, dtype=np.float32)
+            raw_scores = scores.detach().cpu().numpy() if hasattr(scores, "detach") else scores
+            scores_arr = np.asarray(raw_scores, dtype=np.float32)
         except Exception:
             self._append_one(
                 "cache_state_global",
@@ -495,7 +497,16 @@ class ParquetAnalysisLogger:
                 },
             )
             return
-        ids_np = np.asarray(list(content_ids), dtype=np.int64)
+
+        if scores_arr.ndim == 0:
+            # Scalar/None-like values cannot map to per-content rows unless ids size is exactly one.
+            if ids_np.size == 1:
+                scores_np = scores_arr.reshape(1)
+            else:
+                scores_np = np.empty((0,), dtype=np.float32)
+        else:
+            scores_np = scores_arr.reshape(-1)
+
         n = int(min(ids_np.size, scores_np.size))
         if n <= 0:
             self._append_one(

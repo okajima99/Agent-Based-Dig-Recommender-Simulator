@@ -5,11 +5,27 @@ from dataclasses import dataclass
 import numpy as np
 
 
+def _cache_needed_for_algorithm(cache_name: str, display_algorithm: str) -> bool:
+    algo = str(display_algorithm).lower()
+    if cache_name == "cf_matrix":
+        return algo in {"cf_user", "cf_item"}
+    if cache_name == "cbf_pseudo":
+        return algo == "cbf"
+    if cache_name == "pop":
+        return algo == "popularity"
+    if cache_name == "trend":
+        return algo == "trend"
+    if cache_name == "buzz":
+        return algo == "buzz"
+    return True
+
+
 def _log_cache_reset_with_state(
     *,
     logger,
     step: int,
     cache_name: str,
+    display_algorithm: str,
     reason: str,
     timer_before: int | None,
     random_interval_active: bool,
@@ -17,6 +33,8 @@ def _log_cache_reset_with_state(
     include_snapshot_state: bool,
 ) -> None:
     if logger is None or not getattr(logger, "enabled", False):
+        return
+    if not _cache_needed_for_algorithm(cache_name, display_algorithm):
         return
 
     event_id = logger.log_cache_refresh_event(
@@ -48,7 +66,10 @@ def _log_cache_reset_with_state(
                 scores = getattr(isc, "_GLOBAL_TREND_SCORES_T", None)
             else:
                 scores = getattr(isc, "_GLOBAL_BUZZ_SCORES_T", None)
-            content_ids = [int(c.id) for c in getattr(isc, "pool", [])]
+            if scores is None:
+                content_ids = []
+            else:
+                content_ids = [int(c.id) for c in getattr(isc, "pool", [])]
         else:
             scores = None
             content_ids = []
@@ -125,6 +146,7 @@ def prepare_step(
             logger=logger,
             step=step,
             cache_name="cbf_pseudo",
+            display_algorithm=display_algorithm,
             reason="random_window_exit",
             timer_before=pseudo_before,
             random_interval_active=random_interval_active_flag,
@@ -135,6 +157,7 @@ def prepare_step(
             logger=logger,
             step=step,
             cache_name="cf_matrix",
+            display_algorithm=display_algorithm,
             reason="random_window_exit",
             timer_before=cf_before,
             random_interval_active=random_interval_active_flag,
@@ -145,6 +168,7 @@ def prepare_step(
             logger=logger,
             step=step,
             cache_name="pop",
+            display_algorithm=display_algorithm,
             reason="random_window_exit",
             timer_before=pop_before,
             random_interval_active=random_interval_active_flag,
@@ -155,6 +179,7 @@ def prepare_step(
             logger=logger,
             step=step,
             cache_name="trend",
+            display_algorithm=display_algorithm,
             reason="random_window_exit",
             timer_before=trend_before,
             random_interval_active=random_interval_active_flag,
@@ -165,6 +190,7 @@ def prepare_step(
             logger=logger,
             step=step,
             cache_name="buzz",
+            display_algorithm=display_algorithm,
             reason="random_window_exit",
             timer_before=buzz_before,
             random_interval_active=random_interval_active_flag,
@@ -244,6 +270,7 @@ def prepare_step(
             logger=logger,
             step=step,
             cache_name="cbf_pseudo",
+            display_algorithm=display_algorithm,
             reason="replenish",
             timer_before=pseudo_before,
             random_interval_active=random_interval_active_flag,
@@ -254,6 +281,7 @@ def prepare_step(
             logger=logger,
             step=step,
             cache_name="cf_matrix",
+            display_algorithm=display_algorithm,
             reason="replenish",
             timer_before=cf_before,
             random_interval_active=random_interval_active_flag,
@@ -264,6 +292,7 @@ def prepare_step(
             logger=logger,
             step=step,
             cache_name="pop",
+            display_algorithm=display_algorithm,
             reason="replenish",
             timer_before=pop_before,
             random_interval_active=random_interval_active_flag,
@@ -274,6 +303,7 @@ def prepare_step(
             logger=logger,
             step=step,
             cache_name="trend",
+            display_algorithm=display_algorithm,
             reason="replenish",
             timer_before=trend_before,
             random_interval_active=random_interval_active_flag,
@@ -284,6 +314,7 @@ def prepare_step(
             logger=logger,
             step=step,
             cache_name="buzz",
+            display_algorithm=display_algorithm,
             reason="replenish",
             timer_before=buzz_before,
             random_interval_active=random_interval_active_flag,
