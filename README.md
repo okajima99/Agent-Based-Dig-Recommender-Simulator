@@ -1,36 +1,94 @@
-## Package Guide
+# Agent-Based-Dig-Recommender-Simulator
 
-### Suggested Reading Order
+推薦アルゴリズムの違いが、ユーザの探索行動（dig 行動）や嗜好形成にどのような影響を与えるかを分析するための、研究用途のエージェントベースシミュレータです。
+
+## 概要
+
+短尺動画プラットフォームや推薦主導型サービスでは、ユーザは自ら検索するだけでなく、アルゴリズムによって提示されたコンテンツを連続的に消費します。  
+本リポジトリは、そのような環境において、推薦アルゴリズムの差がユーザの行動や内的状態にどう影響するかをシミュレーションで検証することを目的としています。
+
+本シミュレータでは、複数の推薦手法を切り替えながら、エージェントの行動・状態更新・ログ出力を比較できるように設計しています。
+
+## このリポジトリを作った理由
+
+実サービス上のユーザ行動は、推薦、流行、社会的影響、偶然の接触など複数の要因が絡むため、  
+「推薦アルゴリズムそのものの違い」が探索行動に与える影響を純粋に観測することは簡単ではありません。
+
+そこで本研究では、条件を統制しやすいエージェントベースシミュレーションを用いて、
+
+- 推薦手法ごとの探索傾向の違い
+- 興味・嗜好の変化過程
+- ログを用いた比較分析
+
+を観測できる実験基盤として、このシミュレータを構築しています。
+
+## 研究用途について
+
+このリポジトリは**研究・実験用途**を主目的として作成されています。  
+そのため、一般的なアプリケーションや商用利用向けに整備されたパッケージではなく、以下の性質を持ちます。
+
+- 再現実験や比較実験を行うためのコードベース
+- ログ出力・分析を重視した構成
+- 推薦アルゴリズムやエージェント挙動を拡張しやすい設計
+- 安定した公開 API よりも、研究上の試行錯誤を優先した実装
+
+## 主な構成
+
+### 読む順番
 1. `main.py`
 2. `simulation.py`
 3. `core.py`
 4. `engine/`
 
-### Responsibilities
-- `main.py`: loads config and starts execution
-- `simulation.py`: run orchestration and result/report output
-- `core.py`: simulation runtime loop
-- `agents/`: agent behavior and state update logic
-- `engine/`: recommendation and cache computation
-- `steps/`: per-step execution flow
-- `utils/`: logging, runtime helpers, math/vector utilities
-- `core/`: builders and internal wiring helpers
+### 各ファイル・ディレクトリの役割
+- `main.py` : 設定を読み込み、シミュレーションを開始
+- `simulation.py` : 実行全体の制御、結果・レポート出力
+- `core.py` : シミュレーションのメインループ
+- `agents/` : エージェントの行動・状態更新ロジック
+- `engine/` : 推薦計算、キャッシュ計算
+- `steps/` : 1ステップごとの実行フロー
+- `utils/` : ログ、補助関数、数値・ベクトル処理
+- `core/` : 内部ビルドや配線処理
 
-### Batch Run
-- Run all algorithms:
-  - `python3 run_all_algorithms.py`
-- Short smoke run example:
-  - `MAX_STEPS=100 NUM_AGENTS=200 NUM_CONTENTS=2000 python3 run_all_algorithms.py`
-- Optional output prefix grouping:
-  - `OUT_PREFIX_BASE=myrun`
+## 実行環境
 
-### Analysis Log Layout
-- Output root: `./analysis_logs/<algorithm_label>/<run_id>/` (relative to current working directory)
-- `algorithm_label` includes face variants where relevant:
-  - `cbf_affinity`, `cbf_novelty`, `cf_user_affinity`, `cf_item_novelty`
-- Run ID markers:
+本リポジトリは **CUDA が利用可能な GPU 環境** を前提としています。  
+**macOS の GPU（MPS / Metal）には対応していません。**
+
+想定環境:
+- CUDA 対応 GPU
+- CUDA が利用可能な Python 実行環境
+- Linux もしくは CUDA が利用できる環境
+
+※ 実行に必要なライブラリやバージョンは、環境に応じて適切に構成してください。
+
+## 出力ログ
+
+出力先の基本構造は以下です。
+
+```text
+./analysis_logs/<algorithm_label>/<run_id>/
+```
+
+### 補足
+- `algorithm_label` には手法ごとのラベルが入ります
+  - `cbf_affinity`
+  - `cbf_novelty`
+  - `cf_user_affinity`
+  - `cf_item_novelty`
+- 実行 ID の管理ファイル
   - `<run_id>/RUN_ID.txt`
   - `<algorithm_label>/latest_run_id.txt`
   - `<algorithm_label>/<run_id>.runid`
-- Console/text log:
+- コンソール/テキストログ
   - `<run_id>/<OUT_PREFIX_FACE>_analysis.txt`
+
+## 注意
+
+- このコードは研究過程に合わせて更新される可能性があります
+- 一般公開向けツールというより、実験基盤としての利用を想定しています
+- 結果の解釈には、設定値や初期条件の確認が必要です
+
+## 今後の拡張
+
+- 深層学習ベースの推薦アルゴリズムの導入
