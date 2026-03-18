@@ -21,6 +21,7 @@ class BatchJob:
 
 
 JOBS: tuple[BatchJob, ...] = (
+    BatchJob("random"),
     BatchJob("cbf", "CBF_FACE", "affinity"),
     BatchJob("cbf", "CBF_FACE", "novelty"),
     BatchJob("cf_user", "CF_USER_FACE", "affinity"),
