@@ -427,33 +427,14 @@ class ParquetAnalysisLogger:
 
     def log_cache_state_cbf(self, *, event_id: int, step: int, pseudo_g_t, pseudo_i_t) -> None:
         if (pseudo_g_t is None) or (pseudo_i_t is None):
-            self._append_one(
-                "cache_state_cbf",
-                {
-                    "run_id": self.run_id,
-                    "event_id": int(event_id),
-                    "step": int(step),
-                    "agent_id": -1,
-                    "pseudo_g": [],
-                    "pseudo_i": [],
-                }
-            )
+            # Skip logging rows when pseudo cache is unavailable.
+            # Emitting empty lists here can force a Parquet list<null> schema.
             return
         try:
             g_np = pseudo_g_t.detach().cpu().numpy()
             i_np = pseudo_i_t.detach().cpu().numpy()
         except Exception:
-            self._append_one(
-                "cache_state_cbf",
-                {
-                    "run_id": self.run_id,
-                    "event_id": int(event_id),
-                    "step": int(step),
-                    "agent_id": -1,
-                    "pseudo_g": [],
-                    "pseudo_i": [],
-                }
-            )
+            # Skip invalid snapshots to preserve stable list<double> schema.
             return
 
         n = int(min(len(g_np), len(i_np)))
