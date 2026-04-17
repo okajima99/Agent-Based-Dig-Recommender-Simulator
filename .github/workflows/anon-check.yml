@@ -1,0 +1,45 @@
+name: anon-check
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for personal identifiers
+        shell: bash
+        run: |
+          set -u
+          # Detect personal identifiers that must not appear in public repos.
+          # Word-boundaries avoid false positives (aria-hidden, remark-gfm, etc).
+          PATTERN='(?i)(\b(okg|haven|araya)\b|com\.okg\.|\baria\b(?!-)|\bark\b(?!-))'
+
+          matches=$(grep -rEnP \
+              --exclude-dir=.git \
+              --exclude-dir=node_modules \
+              --exclude-dir=dist \
+              --exclude-dir=build \
+              --exclude-dir=.venv \
+              --exclude-dir=venv \
+              --exclude-dir=__pycache__ \
+              --exclude-dir=.next \
+              --exclude='*.lock' \
+              --exclude='package-lock.json' \
+              --exclude='yarn.lock' \
+              --exclude='*.min.js' \
+              --exclude='anon-check.yml' \
+              "$PATTERN" . || true)
+
+          if [ -n "$matches" ]; then
+            echo "$matches"
+            echo ""
+            echo "::error::Personal identifiers detected. Remove or move to gitignored config."
+            exit 1
+          fi
+
+          echo "OK: no personal identifiers found"
